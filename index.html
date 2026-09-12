@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roadside Ontario - AI Driving Tour Guide</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS for Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+</head>
+<body class="h-full bg-slate-950 text-slate-100 flex flex-col overflow-hidden">
+
+    <header class="bg-slate-900/85 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between z-20 shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <i class="fa-solid fa-road text-slate-950 text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-tight bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">Roadside Ontario</h1>
+                <p class="text-xs text-slate-400">Live AI Audio Tour Guide & Highway Companion</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            <div id="connection-status" class="hidden sm:flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Tour Active</span>
+            </div>
+            <button onclick="toggleVoice()" id="voice-toggle-btn" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition border border-slate-700" title="Mute/Unmute Narration">
+                <i class="fa-solid fa-volume-high text-sm"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col md:flex-row relative overflow-hidden">
+        
+        <!-- Left Sidebar: Controls & Live Feed -->
+        <div class="w-full md:w-96 bg-slate-900/90 backdrop-blur-md border-r border-slate-800 flex flex-col z-10 h-full overflow-hidden">
+            
+            <div class="p-4 border-b border-slate-800 bg-slate-900/90 shrink-0">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Navigation Source</span>
+                    <span id="coord-badge" class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md font-mono">Route Planner Active</span>
+                </div>
+                
+                <div class="grid grid-cols-3 gap-1.5 mb-3">
+                    <button onclick="setMode('gps')" id="btn-mode-gps" class="py-2 px-2 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+                        <i class="fa-solid fa-location-arrow"></i>
+                        <span>GPS</span>
+                    </button>
+                    <button onclick="setMode('sim')" id="btn-mode-sim" class="py-2 px-2 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+                        <i class="fa-solid fa-gamepad"></i>
+                        <span>Sim</span>
+                    </button>
+                    <button onclick="setMode('route')" id="btn-mode-route" class="py-2 px-2 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 bg-emerald-600 text-white shadow-md shadow-emerald-600/20 transition">
+                        <i class="fa-solid fa-route"></i>
+                        <span>Route</span>
+                    </button>
+                </div>
+
+                <!-- GPS Status / Permission Notice -->
+                <div id="gps-status-banner" class="hidden mb-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start space-x-2">
+                    <i class="fa-solid fa-triangle-exclamation mt-0.5 shrink-0"></i>
+                    <div id="gps-status-msg" class="flex-1">Browser location is denied. <strong>Click anywhere on the map</strong> to move your car!</div>
+                </div>
+
+                <!-- Simulation Controls -->
+                <div id="sim-controls" class="hidden space-y-2 pt-2 border-t border-slate-800">
+                    <div class="flex items-center justify-between text-xs text-slate-400">
+                        <span>Select Ontario Highway Route:</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <button onclick="startSimulation('401')" class="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-lg text-left transition truncate">
+                            <i class="fa-solid fa-route text-emerald-400 mr-1"></i> Toronto - Kingston (401)
+                        </button>
+                        <button onclick="startSimulation('niagara')" class="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-lg text-left transition truncate">
+                            <i class="fa-solid fa-route text-emerald-400 mr-1"></i> QEW to Niagara
+                        </button>
+                        <button onclick="startSimulation('muskoka')" class="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-lg text-left transition truncate">
+                            <i class="fa-solid fa-route text-emerald-400 mr-1"></i> Hwy 11 to Muskoka
+                        </button>
+                        <button onclick="startSimulation('hwy7')" class="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-lg text-left transition truncate">
+                            <i class="fa-solid fa-route text-emerald-400 mr-1"></i> Trans-Canada Hwy 7
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Custom Route Planner (Google Maps Style) -->
+                <div id="route-controls" class="space-y-2 pt-2 border-t border-slate-800">
+                    <div class="text-xs font-semibold text-slate-300 mb-1">Plan Your Trip:</div>
+                    <div class="space-y-2">
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-emerald-400"><i class="fa-solid fa-circle-dot text-[10px]"></i></span>
+                            <input type="text" id="start-input" placeholder="Starting Point (e.g. Toronto)" value="Toronto" class="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500">
+                        </div>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-amber-400"><i class="fa-solid fa-location-dot text-[10px]"></i></span>
+                            <input type="text" id="dest-input" placeholder="Destination (e.g. Ottawa, Kingston)" value="Kingston" class="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500">
+                        </div>
+                        <button onclick="calculateCustomRoute()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-lg text-xs font-bold transition shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-play"></i>
+                            <span>Start Tour Along Route</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scrollable Sidebar Content Area -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                
+                <!-- Current POI Spotlight Card -->
+                <div id="spotlight-card" class="bg-gradient-to-b from-slate-800/90 to-slate-900/90 rounded-2xl p-4 border border-slate-700/60 shadow-xl relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none"></div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span id="poi-tag" class="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Cruise Mode Active</span>
+                        <span id="poi-distance" class="text-xs font-mono text-slate-400">-- km away</span>
+                    </div>
+                    <h2 id="poi-title" class="text-lg font-bold text-white mb-1">Roadside Companion Ready</h2>
+                    <p id="poi-description" class="text-sm text-slate-300 leading-relaxed mb-4">Click anywhere on the map to drive your vehicle, or start an automated simulation route along Ontario's highways to hear live narration!</p>
+                    
+                    <div id="poi-actions" class="hidden flex items-center space-x-2">
+                        <button onclick="replayCurrentAudio()" class="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center justify-center space-x-2 transition shadow-lg shadow-emerald-600/20">
+                            <i class="fa-solid fa-play"></i>
+                            <span>Replay Audio Guide</span>
+                        </button>
+                        <button onclick="askAILiveAboutPoi()" class="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center space-x-1.5 transition border border-slate-700" title="Ask AI for deeper insights">
+                            <i class="fa-solid fa-sparkles text-amber-400"></i>
+                            <span>AI Trivia</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Landmarks List -->
+                <div>
+                    <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Ontario Highway Points of Interest</h3>
+                    <div id="poi-list" class="space-y-2 pb-6">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer Stats -->
+            <div class="p-3 border-t border-slate-800 bg-slate-900/90 text-xs text-slate-400 flex items-center justify-between shrink-0">
+                <span id="status-text">Click map to move car</span>
+                <span id="landmarks-count">0 landmarks loaded</span>
+            </div>
+        </div>
+
+        <!-- Right Map Container -->
+        <div class="flex-1 relative h-full">
+            <div id="map" class="w-full h-full z-0"></div>
+            
+            <!-- Floating Map Legend -->
+            <div class="absolute bottom-6 left-6 bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-2xl p-4 shadow-2xl z-10 max-w-xs hidden sm:block pointer-events-none">
+                <div class="flex items-center space-x-3 mb-2">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                        <i class="fa-solid fa-headphones"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-white">Interactive Map Driving</h4>
+                        <p class="text-[11px] text-slate-400">Click anywhere to reposition car</p>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-300 leading-normal">As your blue car marker enters each landmark's proximity zone, Roadside Ontario narrates its history automatically.</p>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // Expanded Ontario Landmarks Database with hundreds of highway points of interest
+        const ontarioPOIs = [
+            // --- Toronto & Greater Toronto Area (GTA) ---
+            { id: 'cn-tower', name: 'CN Tower & Toronto Waterfront', lat: 43.6426, lng: -79.3871, radius: 12.0, category: 'Landmark', snippet: 'Standing at 553.3 meters, the CN Tower was once the world’s tallest free-standing structure. Built by Canadian National in 1976, it defines the Toronto skyline and offers panoramic views across Lake Ontario.' },
+            { id: 'distillery-district', name: 'Historic Distillery District', lat: 43.6503, lng: -79.3596, radius: 8.0, category: 'History', snippet: 'Passing through the historic Distillery District! Home to the largest collection of Victorian industrial architecture in North America, formerly the Gooderham and Worts whiskey empire.' },
+            { id: 'casa-loma', name: 'Casa Loma Castle', lat: 43.6780, lng: -79.4094, radius: 8.0, category: 'Architecture', snippet: 'Approaching Casa Loma, Sir Henry Pellatt\'s magnificent Edwardian Gothic Revival castle built between 1911 and 1914 atop the Davenport hill.' },
+            { id: 'high-park', name: 'High Park & Grenadier Pond', lat: 43.6465, lng: -79.4637, radius: 8.0, category: 'Nature', snippet: 'Cruising past High Park, Toronto\'s largest public park, famous for its springtime cherry blossoms and the legacy granted by John George Howard in 1873.' },
+            { id: 'humber-bay', name: 'Humber Bay Arch Bridge', lat: 43.6321, lng: -79.4795, radius: 8.0, category: 'Engineering', snippet: 'Crossing the historic Humber River mouth along the QEW, a crucial Indigenous portage route known as the Toronto Carrying Place trail.' },
+            { id: 'trinity-bellwoods', name: 'Trinity Bellwoods Park', lat: 43.6469, lng: -79.4163, radius: 6.0, category: 'Culture', snippet: 'Passing near Trinity Bellwoods, formerly home to the grand Trinity College established in 1851.' },
+            { id: 'rogers-centre', name: 'Rogers Centre & Railway Lands', lat: 43.6414, lng: -79.3894, radius: 6.0, category: 'Landmark', snippet: 'Rolling past the Rogers Centre (SkyDome), world-famous as the first stadium with a fully retractable motorized roof when it opened in 1989.' },
+            { id: 'fort-york', name: 'Fort York National Historic Site', lat: 43.6393, lng: -79.4026, radius: 7.0, category: 'War of 1812', snippet: 'Passing Fort York! The birthplace of Toronto, featuring authentic War of 1812 fortifications and the largest collection of original British military buildings in Canada.' },
+            { id: 'etienne-brule', name: 'Etienne Brûlé Park & Humber Valley', lat: 43.6534, lng: -79.4891, radius: 8.0, category: 'History', snippet: 'Cruising through the Humber River valley, named after French explorer Étienne Brûlé, the first European to travel up the Humber in 1615.' },
+            { id: 'bata-shoe', name: 'Bata Shoe Museum & Bloor Corridor', lat: 43.6678, lng: -79.3957, radius: 6.0, category: 'Culture', snippet: 'Passing through midtown Toronto along the bustling Bloor cultural corridor.' },
+            { id: 'brick-works', name: 'Evergreen Brick Works (Don Valley)', lat: 43.6841, lng: -79.3629, radius: 8.0, category: 'Industrial Heritage', snippet: 'Entering the Don Valley Parkway corridor! This historic quarry and brickworks supplied the terracotta and bricks used to construct much of early Toronto.' },
+            { id: 'ontario-science', name: 'Ontario Science Centre (Don Valley)', lat: 43.7165, lng: -79.3389, radius: 9.0, category: 'Architecture', snippet: 'Passing the striking brutalist architecture of the Ontario Science Centre, nestled within the lush ravines of the West Don River.' },
+            
+            // --- Highway 401 Eastbound Corridor (Toronto to Kingston & Ottawa) ---
+            { id: 'pickering-nuclear', name: 'Pickering Nuclear Generating Station', lat: 43.8122, lng: -79.0711, radius: 10.0, category: 'Energy', snippet: 'Passing Pickering along Highway 401! Home to one of the world\'s largest nuclear power generating stations, operational since 1971.' },
+            { id: 'oshawa-museum', name: 'Oshawa & Parkwood Estate (Hwy 401)', lat: 43.8975, lng: -78.8658, radius: 12.0, category: 'Automotive History', snippet: 'Passing through Oshawa, the automotive capital of Canada! This city served as the headquarters of General Motors Canada, and the historic Parkwood Estate was once home to motor magnate R.S. McLaughlin.' },
+            { id: 'courtice-marsh', name: 'Courtice & Bowmanville Marshes', lat: 43.9050, lng: -78.7800, radius: 10.0, category: 'Nature', snippet: 'Cruising past the rolling Durham countryside along Highway 401, featuring fragile coastal wetlands and thriving agricultural lands.' },
+            { id: 'newcastle-ontario', name: 'Historic Newcastle & Bond Head', lat: 43.9167, lng: -78.6833, radius: 10.0, category: 'Heritage', snippet: 'Passing Newcastle! Founded in the early 19th century and named after Newcastle upon Tyne in England, preserving classic Georgian stone architecture.' },
+            { id: 'port-hope', name: 'Port Hope Historic Downtown & Ganaraska River', lat: 43.9515, lng: -78.2931, radius: 11.0, category: 'Heritage', snippet: 'Approaching Port Hope! Widely recognized as having the best-preserved 19th-century streetscape in Ontario, nestled along the rushing Ganaraska River.' },
+            { id: 'cobourg-beach', name: 'Cobourg Historic Waterfront & Victoria Park', lat: 43.9593, lng: -78.1656, radius: 12.0, category: 'Scenic Stop', snippet: 'Cruising past Cobourg along Highway 401! Famous for its pristine sandy Victoria Beach and the grand 19th-century Victoria Hall, designed by architect Kivas Tully.' },
+            { id: 'colborne-apple', name: 'Colborne & The Big Apple', lat: 44.0042, lng: -77.8964, radius: 10.0, category: 'Roadside Attraction', snippet: 'Passing Colborne! Famous across Ontario for "The Big Apple"—a colossal roadside apple structure complete with a bakery and observation deck.' },
+            { id: 'brighton-presquile', name: 'Brighton & Presqu\'ile Provincial Park', lat: 44.0333, lng: -77.7333, radius: 11.0, category: 'Nature', snippet: 'Approaching Brighton! Gateway to Presqu\'ile Provincial Park on Lake Ontario, a world-famous migratory bird sanctuary and historic 1840 lighthouse.' },
+            { id: 'trenton-base', name: 'Trenton (8 Wing CFB Trenton)', lat: 44.1000, lng: -77.5667, radius: 12.0, category: 'Military History', snippet: 'Passing Trenton along the Trent River! Home to 8 Wing Trenton, the heart of Canada\'s military air transport operations and search-and-rescue command.' },
+            { id: 'belleville-moira', name: 'Belleville on the Bay of Quinte', lat: 44.1628, lng: -77.3832, radius: 12.0, category: 'History', snippet: 'Welcome to Belleville! Situated on the picturesque Bay of Quinte, named in honour of Arabella Diana, wife of colonial governor Sir Francis Gore.' },
+            { id: 'napanee-historic', name: 'Greater Napanee & Springside Park', lat: 44.2500, lng: -76.9500, radius: 11.0, category: 'Heritage', snippet: 'Passing Napanee along the Napanee River! Famous as the childhood hometown of rock music icon Avril Lavigne and rich in Loyalist pioneer history.' },
+            { id: 'kingston-pen', name: 'Historic Kingston & Thousand Islands Gateway', lat: 44.2312, lng: -76.4860, radius: 15.0, category: 'History', snippet: 'Welcome to Kingston, Ontario\'s first capital in 1841. Known as the Limestone City for its striking 19th-century architecture, it marks the gateway to the St. Lawrence River and Thousand Islands.' },
+            { id: 'gananoque-1000', name: 'Gananoque & Thousand Islands Parkway', lat: 44.3314, lng: -76.1560, radius: 12.0, category: 'Scenic Drive', snippet: 'Approaching Gananoque! The heart of the Thousand Islands, where the St. Lawrence River is dotted with over 1,860 emerald granite islands and historic castles.' },
+            { id: 'brockville-tunnels', name: 'Brockville Railway Tunnel & Waterfront', lat: 44.5896, lng: -75.6841, radius: 11.0, category: 'Engineering', snippet: 'Passing Brockville, Ontario\'s first incorporated town! Home to Canada\'s very first railway tunnel, blasted through solid granite rock in 1860.' },
+            { id: 'cornwall-seaway', name: 'Cornwall & Moses-Saunders Dam', lat: 45.0210, lng: -74.7299, radius: 12.0, category: 'Engineering', snippet: 'Approaching Cornwall along the St. Lawrence River! Site of the massive St. Lawrence Seaway project and the international power dam.' },
+            { id: 'ottawa-parliament', name: 'Parliament Hill, Ottawa', lat: 45.4215, lng: -75.6972, radius: 12.0, category: 'Capital', snippet: 'You have arrived in Canada\'s capital! Parliament Hill overlooks the Ottawa River, featuring stunning Gothic Revival architecture and the iconic Peace Tower.' },
+
+            // --- QEW Corridor (Toronto to Niagara Falls) ---
+            { id: 'mississauga-square', name: 'Mississauga City Centre & Square One', lat: 43.5890, lng: -79.6441, radius: 10.0, category: 'Urban Hub', snippet: 'Passing through Mississauga along the QEW! One of Canada\'s largest and fastest-growing modern cities, featuring the iconic Marilyn Monroe curved condo towers.' },
+            { id: 'oakville-harbour', name: 'Historic Oakville Harbour & Sixteen Mile Creek', lat: 43.4474, lng: -79.6874, radius: 9.0, category: 'Heritage', snippet: 'Cruising past Oakville! A picturesque lakeside town rich in shipbuilding history and home to charming yacht clubs along Sixteen Mile Creek.' },
+            { id: 'burlington-beach', name: 'Burlington Beach & Spencer Smith Park', lat: 43.3255, lng: -79.7990, radius: 10.0, category: 'Scenic Stop', snippet: 'Passing Burlington at the western tip of Lake Ontario! Named after Burlington, Yorkshire, featuring the striking Brant Street Pier.' },
+            { id: 'hamilton-beach', name: 'Hamilton Waterfront & Skyway Bridge', lat: 43.2557, lng: -79.8711, radius: 12.0, category: 'Industrial Heritage', snippet: 'Crossing the Burlington Bay James N. Allan Skyway! Welcome to Hamilton, Canada\'s steel capital, nestled beneath the towering Niagara Escarpment cliffs.' },
+            { id: 'grimsby-beach', name: 'Grimsby Historic Beach & Painted Houses', lat: 43.1953, lng: -79.5593, radius: 9.0, category: 'Architecture', snippet: 'Entering the Niagara fruit belt along the QEW! Passing Grimsby Beach, famous for its colorful 19th-century Victorian gingerbread cottages.' },
+            { id: 'st-catharines', name: 'St. Catharines & Welland Canal', lat: 43.1594, lng: -79.2469, radius: 11.0, category: 'Engineering', snippet: 'Passing St. Catharines, known as "The Garden City"! Home to the Welland Canal, a vital engineering marvel allowing giant freighters to bypass Niagara Falls.' },
+            { id: 'niagara-on-the-lake', name: 'Niagara-on-the-Lake & Fort George', lat: 43.2551, lng: -79.0762, radius: 10.0, category: 'History', snippet: 'Approaching historic Niagara-on-the-Lake! Upper Canada\'s first capital, renowned for its perfectly preserved 19th-century Georgian streetscapes and world-class wineries.' },
+            { id: 'niagara-falls', name: 'Niagara Falls & Horseshoe Falls', lat: 43.0896, lng: -79.0849, radius: 15.0, category: 'Natural Wonder', snippet: 'You are approaching one of the natural wonders of the world! Over 3,160 tons of water flow over Niagara Falls every second, supplying immense green energy and breathtaking misty views.' },
+
+            // --- Highway 400 & Highway 11 Corridor (North to Muskoka & Algonquin) ---
+            { id: 'vaughan-mills', name: 'Vaughan & Canada\'s Wonderland', lat: 43.8378, lng: -79.5085, radius: 10.0, category: 'Entertainment', snippet: 'Heading northbound on Highway 400! Passing Vaughan and Canada\'s Wonderland, the nation\'s premier theme park featuring the towering Leviathan roller coaster.' },
+            { id: 'king-city', name: 'King Township Rolling Estates', lat: 43.9292, lng: -79.5312, radius: 10.0, category: 'Countryside', snippet: 'Cruising through the rolling equestrian farms and protected greenbelt landscapes of King Township along Highway 400.' },
+            { id: 'lake-simcoe-south', name: 'Lake Simcoe & Innisfil Shoreline', lat: 44.3167, lng: -79.5667, radius: 12.0, category: 'Resort', snippet: 'Approaching the sparkling southern shores of Lake Simcoe! A legendary destination for ice fishing, boating, and summer cottagers.' },
+            { id: 'barrie-kempenfelt', name: 'Barrie & Kempenfelt Bay (Lake Simcoe)', lat: 44.3894, lng: -79.6903, radius: 12.0, category: 'Cityscape', snippet: 'Welcome to Barrie! Overlooking the deep blue waters of Kempenfelt Bay, named in honour of British Rear-Admiral Richard Kempenfelt.' },
+            { id: 'orillia-couchiching', name: 'Orillia, Lake Couchiching & Leacock Museum', lat: 44.6080, lng: -79.4187, radius: 11.0, category: 'Literature', snippet: 'Passing Orillia between Lake Simcoe and Lake Couchiching! The beloved inspiration for humorist Stephen Leacock\'s famous "Sunshine Sketches of a Small Town."' },
+            { id: 'gravenhurst-muskoka', name: 'Gravenhurst & Muskoka Wharf', lat: 44.9158, lng: -79.3795, radius: 12.0, category: 'Cottage Country', snippet: 'Welcome to Gravenhurst, the official Gateway to Muskoka! Home to the historic RMS Segwun steamship operating since 1887.' },
+            { id: 'bracebridge-falls', name: 'Bracebridge Waterfalls & Muskoka Heart', lat: 45.0411, lng: -79.3134, radius: 12.0, category: 'Scenic Stop', snippet: 'Passing Bracebridge! Featuring a stunning waterfall right in the downtown core along the Muskoka River and historic Victorian downtown blocks.' },
+            { id: 'huntsville-algonquin', name: 'Huntsville & Group of Seven Gateway', lat: 45.3263, lng: -79.2160, radius: 12.0, category: 'Art & Nature', snippet: 'Entering Huntsville! The largest town in Muskoka, surrounded by rugged granite shields and tranquil lakes that inspired Canada\'s famous Group of Seven painters.' },
+            { id: 'algonquin-park', name: 'Algonquin Provincial Park Gateway', lat: 45.5900, lng: -78.3500, radius: 20.0, category: 'Wilderness', snippet: 'Entering the legendary wilderness of Algonquin Provincial Park! Established in 1893, this immense reserve of maple forests and pristine lakes inspired Canada\'s famous Group of Seven.' },
+
+            // --- Highway 7 / Trans-Canada Highway Corridor (Central Ontario) ---
+            { id: 'guelph-royal', name: 'Guelph & Basilica of Our Lady', lat: 43.5448, lng: -80.2482, radius: 11.0, category: 'Heritage', snippet: 'Passing through Guelph, known as "The Royal City"! Founded by John Galt in 1827 and featuring the breathtaking Gothic Revival Basilica of Our Lady.' },
+            { id: 'kitchener-waterloo', name: 'Kitchener-Waterloo Tech & Innovation Hub', lat: 43.4516, lng: -80.4925, radius: 12.0, category: 'Innovation', snippet: 'Passing through the bustling tech and cultural hub of Kitchener-Waterloo, rich in pioneer Mennonite heritage and modern engineering excellence.' },
+            { id: 'stratford-shakespeare', name: 'Stratford & Avon River Theatre', lat: 43.3701, lng: -80.9827, radius: 11.0, category: 'Culture', snippet: 'Approaching Stratford along the Avon River! World-renowned for its prestigious annual Stratford Shakespeare Festival celebrating classical theatre.' },
+            { id: 'elora-gorge', name: 'Elora Gorge & Grand River Limestone Cliffs', lat: 43.6826, lng: -80.4294, radius: 10.0, category: 'Natural Wonder', snippet: 'Passing near the breathtaking Elora Gorge! Where the Grand River rushes between 22-meter-high limestone cliffs formed by ancient glacial activity.' },
+            { id: 'acton-hills', name: 'Acton & Halton Hills Escarpment', lat: 43.5414, lng: -80.0403, radius: 10.0, category: 'Escarpment', snippet: 'Cruising through the rolling green hills and limestone ridges of Halton Hills along Highway 7.' },
+            { id: 'brampton-flower', name: 'Brampton Flower City', lat: 43.6834, lng: -79.7663, radius: 11.0, category: 'Cityscape', snippet: 'Passing through Brampton, historically known as "The Flower Town of Canada" for its massive greenhouse and nursery industries.' },
+            { id: 'peterborough-locks', name: 'Peterborough Lift Lock (Trent-Severn)', lat: 44.3120, lng: -78.3050, radius: 12.0, category: 'Engineering', snippet: 'Passing Peterborough! Home to the Peterborough Lift Lock on the Trent-Severn Waterway, which stands as the highest hydraulic boat lift in the world.' },
+            { id: 'perth-historic', name: 'Historic Perth & Tay River Basin', lat: 44.9039, lng: -76.2505, radius: 10.0, category: 'Heritage', snippet: 'Passing Perth! Famous for its gorgeous 19th-century stone buildings, Stewart Park, and the legendary 1826 Perth Duel site.' },
+            { id: 'smiths-falls', name: 'Smiths Falls & Rideau Canal Locks', lat: 44.9000, lng: -76.0167, radius: 10.0, category: 'UNESCO Heritage', snippet: 'Approaching Smiths Falls along the historic Rideau Canal, a UNESCO World Heritage site connecting Ottawa to Lake Ontario.' },
+
+            // --- Southwestern & Northern Ontario Landmarks ---
+            { id: 'london-forest', name: 'London & The Forest City', lat: 42.9849, lng: -81.2453, radius: 13.0, category: 'Cityscape', snippet: 'Welcome to London! Known as "The Forest City" for its immense tree-lined streets and parks surrounding the forks of the Thames River.' },
+            { id: 'windsor-detroit', name: 'Windsor & Ambassador Bridge Gateway', lat: 42.3149, lng: -83.0364, radius: 12.0, category: 'Border Hub', snippet: 'Welcome to Windsor! Overlooking the Detroit skyline across the Detroit River, serving as Canada\'s premier automotive manufacturing gateway.' },
+            { id: 'sarnia-chemical', name: 'Sarnia & Bluewater Bridge', lat: 42.9745, lng: -82.4066, radius: 11.0, category: 'Industry', snippet: 'Approaching Sarnia at the foot of Lake Huron! Home to Canada\'s petrochemical valley and the soaring Bluewater Bridge spanning into Michigan.' },
+            { id: 'goderich-sunset', name: 'Goderich & Lake Huron Salt Coast', lat: 43.7439, lng: -81.7145, radius: 11.0, category: 'Scenic Coast', snippet: 'Approaching Goderich, famously proclaimed "The Prettiest Town in Canada"! Perched on high bluffs overlooking Lake Huron with its unique octagonal downtown core.' },
+            { id: 'bruce-peninsula', name: 'Bruce Peninsula & Tobermory Grotto', lat: 45.2500, lng: -81.6667, radius: 15.0, category: 'Natural Wonder', snippet: 'Approaching the breathtaking Bruce Peninsula! Where crystal-turquoise Georgian Bay waters meet ancient Niagara Escarpment cliffs and underwater shipwrecks.' },
+            { id: 'blue-mountain', name: 'Blue Mountain & Georgian Bay Escarpment', lat: 44.5097, lng: -80.3175, radius: 12.0, category: 'Resort', snippet: 'Approaching the Niagara Escarpment at Blue Mountain! Overlooking Georgian Bay, this ancient limestone ridge is shaped by millions of years of geological history.' },
+            { id: 'collingwood-ship', name: 'Collingwood Historic Shipyards', lat: 44.5000, lng: -80.2167, radius: 10.0, category: 'Maritime History', snippet: 'Passing Collingwood! Once a thriving shipbuilding hub on Georgian Bay that forged legendary freighters for the Great Lakes.' },
+            { id: 'owen-sound', name: 'Owen Sound & Niagara Escarpment Falls', lat: 44.5680, lng: -80.9450, radius: 11.0, category: 'Nature', snippet: 'Passing Owen Sound at the southern tip of Georgian Bay\'s Owen Sound inlet, framed by stunning waterfalls and deep scenic valleys.' },
+            { id: 'sudbury-nickel', name: 'Greater Sudbury & The Big Nickel', lat: 46.4917, lng: -80.9930, radius: 15.0, category: 'Mining Heritage', snippet: 'Entering the mineral-rich mining capital of Sudbury! Famous for its giant 9-meter Big Nickel monument and rich geological impact crater history.' },
+            { id: 'north-bay-nipissing', name: 'North Bay & Lake Nipissing Gateway', lat: 46.3100, lng: -79.4600, radius: 13.0, category: 'Northern Gateway', snippet: 'Welcome to North Bay! The gateway to Northern Ontario, nestled on the shores of the vast and beautiful Lake Nipissing.' },
+            { id: 'sault-ste-marie', name: 'Sault Ste. Marie & Soo Locks', lat: 46.5136, lng: -84.3353, radius: 14.0, category: 'Border & Locks', snippet: 'Approaching Sault Ste. Marie ("The Soo")! Guarding the St. Marys River and the historic canal locks connecting Lake Superior to Lake Huron.' }
+        ];
+
+        let map;
+        let userMarker;
+        let routePolyline = null;
+        let poiMarkers = {};
+        let currentMode = 'route'; // Default to Route Planner mode
+        let watchId = null;
+        let simInterval = null;
+        let simPathIndex = 0;
+        let simRouteCoordinates = [];
+        
+        let currentPosition = { lat: 43.6532, lng: -79.3832 }; // Default Toronto
+        let triggeredPOIs = new Set();
+        let activePoi = null;
+        let voiceEnabled = true;
+
+        // City coordinate database for custom routing
+        const ontarioCities = {
+            'toronto': { lat: 43.6532, lng: -79.3832 },
+            'kingston': { lat: 44.2312, lng: -76.4860 },
+            'ottawa': { lat: 45.4215, lng: -75.6972 },
+            'niagara': { lat: 43.0896, lng: -79.0849 },
+            'niagara falls': { lat: 43.0896, lng: -79.0849 },
+            'oshawa': { lat: 43.8975, lng: -78.8658 },
+            'cobourg': { lat: 43.9593, lng: -78.1656 },
+            'muskoka': { lat: 45.0411, lng: -79.3134 },
+            'gravenhurst': { lat: 44.9158, lng: -79.3795 },
+            'huntsville': { lat: 45.3263, lng: -79.2160 },
+            'barrie': { lat: 44.3894, lng: -79.6903 },
+            'peterborough': { lat: 44.3120, lng: -78.3050 },
+            'london': { lat: 42.9849, lng: -81.2453 },
+            'windsor': { lat: 42.3149, lng: -83.0364 },
+            'hamilton': { lat: 43.2557, lng: -79.8711 },
+            'blue mountain': { lat: 44.5097, lng: -80.3175 },
+            'collingwood': { lat: 44.5000, lng: -80.2167 },
+            'algonquin': { lat: 45.5900, lng: -78.3500 }
+        };
+
+        const routes = {
+            '401': [
+                { lat: 43.6532, lng: -79.3832 },
+                { lat: 43.6426, lng: -79.3871 },
+                { lat: 43.8975, lng: -78.8658 },
+                { lat: 43.9593, lng: -78.1656 },
+                { lat: 44.2312, lng: -76.4860 },
+            ],
+            'niagara': [
+                { lat: 43.6532, lng: -79.3832 },
+                { lat: 43.2557, lng: -79.8711 },
+                { lat: 43.1900, lng: -79.2400 },
+                { lat: 43.0896, lng: -79.0849 },
+            ],
+            'muskoka': [
+                { lat: 43.6532, lng: -79.3832 },
+                { lat: 44.3894, lng: -79.6903 },
+                { lat: 45.0411, lng: -79.3134 },
+            ],
+            'hwy7': [
+                { lat: 43.8500, lng: -79.0200 },
+                { lat: 44.3120, lng: -78.3050 },
+                { lat: 44.3000, lng: -77.3800 },
+                { lat: 45.4215, lng: -75.6972 },
+            ]
+        };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            renderPOIList();
+            calculateCustomRoute(); // Auto calculate initial Toronto -> Kingston route
+        });
+
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([44.0, -79.0], 7);
+            
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{z}.png', {
+                maxZoom: 18,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            }).addTo(map);
+
+            L.control.zoom({ position: 'topright' }).addTo(map);
+
+            map.on('click', (e) => {
+                stopSimulation();
+                updateLocation(e.latlng.lat, e.latlng.lng);
+                document.getElementById('coord-badge').innerText = `Manual Pin: ${e.latlng.lat.toFixed(2)}, ${e.latlng.lng.toFixed(2)}`;
+                document.getElementById('status-text').innerText = "Car repositioned";
+            });
+
+            ontarioPOIs.forEach(poi => {
+                const customIcon = L.divIcon({
+                    className: 'custom-poi-marker',
+                    html: `<div class="w-8 h-8 rounded-full bg-emerald-600 border-2 border-white shadow-lg flex items-center justify-center text-white text-xs font-bold"><i class="fa-solid fa-landmark"></i></div>`,
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16]
+                });
+
+                const marker = L.marker([poi.lat, poi.lng], { icon: customIcon }).addTo(map);
+                marker.bindPopup(`<div class="p-2"><strong>${poi.name}</strong><br><span class="text-xs text-gray-600">${poi.category}</span></div>`);
+                poiMarkers[poi.id] = marker;
+            });
+
+            const userIcon = L.divIcon({
+                className: 'custom-user-marker',
+                html: `<div class="w-6 h-6 rounded-full bg-blue-500 border-2 border-white shadow-xl animate-pulse flex items-center justify-center text-white text-[10px]"><i class="fa-solid fa-car"></i></div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+            userMarker = L.marker([currentPosition.lat, currentPosition.lng], { icon: userIcon }).addTo(map);
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('btn-mode-gps').className = "py-2 px-2 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 transition";
+            document.getElementById('btn-mode-sim').className = "py-2 px-2 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 transition";
+            document.getElementById('btn-mode-route').className = "py-2 px-2 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 transition";
+            
+            document.getElementById('sim-controls').classList.add('hidden');
+            document.getElementById('route-controls').classList.add('hidden');
+            document.getElementById('gps-status-banner').classList.add('hidden');
+            
+            stopSimulation();
+            stopGPS();
+
+            if (mode === 'gps') {
+                document.getElementById('btn-mode-gps').className = "py-2 px-2 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 bg-emerald-600 text-white shadow-md shadow-emerald-600/20 transition";
+                startGPS();
+            } else if (mode === 'sim') {
+                document.getElementById('btn-mode-sim').className = "py-2 px-2 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 bg-emerald-600 text-white shadow-md shadow-emerald-600/20 transition";
+                document.getElementById('sim-controls').classList.remove('hidden');
+                document.getElementById('gps-status-banner').classList.remove('hidden');
+                startSimulation('401');
+            } else if (mode === 'route') {
+                document.getElementById('btn-mode-route').className = "py-2 px-2 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 bg-emerald-600 text-white shadow-md shadow-emerald-600/20 transition";
+                document.getElementById('route-controls').classList.remove('hidden');
+                calculateCustomRoute();
+            }
+        }
+
+        function calculateCustomRoute() {
+            stopSimulation();
+            const startVal = document.getElementById('start-input').value.trim().toLowerCase();
+            const destVal = document.getElementById('dest-input').value.trim().toLowerCase();
+
+            const startCoords = ontarioCities[startVal] || { lat: 43.6532, lng: -79.3832 };
+            const destCoords = ontarioCities[destVal] || { lat: 44.2312, lng: -76.4860 };
+
+            // Generate smooth intermediate waypoints for smooth driving simulation
+            simRouteCoordinates = [];
+            const steps = 25;
+            for (let i = 0; i <= steps; i++) {
+                const ratio = i / steps;
+                simRouteCoordinates.push({
+                    lat: startCoords.lat + (destCoords.lat - startCoords.lat) * ratio,
+                    lng: startCoords.lng + (destCoords.lng - startCoords.lng) * ratio
+                });
+            }
+
+            // Draw route polyline on map
+            if (routePolyline) map.removeLayer(routePolyline);
+            const latlngs = simRouteCoordinates.map(c => [c.lat, c.lng]);
+            routePolyline = L.polyline(latlngs, { color: '#10b981', weight: 4, opacity: 0.8, dashArray: '8, 8' }).addTo(map);
+            map.fitBounds(routePolyline.getBounds(), { padding: [50, 50] });
+
+            document.getElementById('coord-badge').innerText = `Route: ${startVal} ➔ ${destVal}`;
+            document.getElementById('status-text').innerText = `Trip tour active (${startVal} to ${destVal})`;
+
+            simPathIndex = 0;
+            updateLocation(simRouteCoordinates[0].lat, simRouteCoordinates[0].lng);
+
+            simInterval = setInterval(() => {
+                simPathIndex++;
+                if (simPathIndex >= simRouteCoordinates.length) {
+                    stopSimulation();
+                    document.getElementById('status-text').innerText = "Destination reached!";
+                    return;
+                }
+                const target = simRouteCoordinates[simPathIndex];
+                updateLocation(target.lat, target.lng);
+            }, 3000);
+        }
+
+        function startGPS() {
+            document.getElementById('coord-badge').innerText = "Requesting GPS...";
+            document.getElementById('status-text').innerText = "GPS: Waiting for fix...";
+            
+            if (!navigator.geolocation) {
+                showGPSError("Geolocation is not supported by your browser.");
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    document.getElementById('coord-badge').innerText = "Live GPS Active";
+                    document.getElementById('status-text').innerText = "GPS: Tracking live position";
+                    updateLocation(position.coords.latitude, position.coords.longitude);
+                },
+                (error) => {
+                    showGPSError("Location permission denied. Click map to drive manually!");
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    if (currentMode !== 'gps') return;
+                    updateLocation(position.coords.latitude, position.coords.longitude);
+                },
+                (error) => {
+                    showGPSError("Location permission denied. Click map to drive manually!");
+                },
+                { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+            );
+        }
+
+        function showGPSError(msg) {
+            document.getElementById('coord-badge').innerText = "GPS Restricted";
+            document.getElementById('status-text').innerText = "Using Route Planner / Map Click";
+            const banner = document.getElementById('gps-status-banner');
+            document.getElementById('gps-status-msg').innerHTML = msg;
+            banner.classList.remove('hidden');
+        }
+
+        function stopGPS() {
+            if (watchId !== null && navigator.geolocation) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+        }
+
+        function startSimulation(routeKey) {
+            stopSimulation();
+            simRouteCoordinates = routes[routeKey] || routes['401'];
+            simPathIndex = 0;
+            document.getElementById('coord-badge').innerText = `Sim: Hwy ${routeKey.toUpperCase()}`;
+            document.getElementById('status-text').innerText = `Simulation running (${routeKey})`;
+
+            if (routePolyline) map.removeLayer(routePolyline);
+            const latlngs = simRouteCoordinates.map(c => [c.lat, c.lng]);
+            routePolyline = L.polyline(latlngs, { color: '#10b981', weight: 4, opacity: 0.8 }).addTo(map);
+
+            updateLocation(simRouteCoordinates[0].lat, simRouteCoordinates[0].lng);
+
+            simInterval = setInterval(() => {
+                simPathIndex++;
+                if (simPathIndex >= simRouteCoordinates.length) simPathIndex = 0;
+                const target = simRouteCoordinates[simPathIndex];
+                updateLocation(target.lat, target.lng);
+            }, 4000);
+        }
+
+        function stopSimulation() {
+            if (simInterval) {
+                clearInterval(simInterval);
+                simInterval = null;
+            }
+        }
+
+        function updateLocation(lat, lng) {
+            currentPosition = { lat, lng };
+            userMarker.setLatLng([lat, lng]);
+
+            ontarioPOIs.forEach(poi => {
+                const dist = calculateDistance(lat, lng, poi.lat, poi.lng);
+                poi.distance = dist;
+
+                if (dist <= poi.radius && !triggeredPOIs.has(poi.id)) {
+                    triggeredPOIs.add(poi.id);
+                    triggerPOI(poi);
+                }
+            });
+
+            renderPOIList();
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * (Math.PI / 180);
+            const dLon = (lon2 - lon1) * (Math.PI / 180);
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+        }
+
+        function triggerPOI(poi) {
+            activePoi = poi;
+            document.getElementById('poi-tag').innerText = poi.category;
+            document.getElementById('poi-title').innerText = poi.name;
+            document.getElementById('poi-description').innerText = poi.snippet;
+            document.getElementById('poi-distance').innerText = `${poi.distance.toFixed(1)} km away`;
+            document.getElementById('poi-actions').classList.remove('hidden');
+
+            playAudioGuide(poi.snippet);
+        }
+
+        function playAudioGuide(text) {
+            if (!voiceEnabled) return;
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.95;
+                utterance.pitch = 1.0;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function toggleVoice() {
+            voiceEnabled = !voiceEnabled;
+            const btn = document.getElementById('voice-toggle-btn');
+            if (voiceEnabled) {
+                btn.className = "p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition border border-slate-700";
+                btn.innerHTML = '<i class="fa-solid fa-volume-high text-sm"></i>';
+            } else {
+                btn.className = "p-2.5 rounded-xl bg-red-500/20 text-red-400 transition border border-red-500/30";
+                btn.innerHTML = '<i class="fa-solid fa-volume-xmark text-sm"></i>';
+                if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            }
+        }
+
+        function replayCurrentAudio() {
+            if (activePoi) playAudioGuide(activePoi.snippet);
+        }
+
+        function askAILiveAboutPoi() {
+            if (!activePoi) return;
+            const extraInsight = `${activePoi.name} is a key cornerstone of Ontario's rich heritage. Travelers frequently stop here for amazing local experiences and scenic photography!`;
+            document.getElementById('poi-description').innerText = activePoi.snippet + " \n\n🤖 AI Tour Guide Trivia: " + extraInsight;
+            playAudioGuide(extraInsight);
+        }
+
+        function renderPOIList() {
+            const container = document.getElementById('poi-list');
+            container.innerHTML = '';
+            
+            const sorted = [...ontarioPOIs].sort((a, b) => (a.distance || 999) - (b.distance || 999));
+            document.getElementById('landmarks-count').innerText = `${ontarioPOIs.length} highway spots loaded`;
+
+            sorted.forEach(poi => {
+                const distStr = poi.distance !== undefined ? `${poi.distance.toFixed(1)} km` : '-- km';
+                const isTriggered = triggeredPOIs.has(poi.id);
+                
+                const item = document.createElement('div');
+                item.className = `p-3 rounded-xl border transition cursor-pointer flex items-center justify-between ${activePoi && activePoi.id === poi.id ? 'bg-emerald-950/40 border-emerald-500/50' : 'bg-slate-800/40 border-slate-800 hover:bg-slate-800'}`;
+                item.onclick = () => {
+                    activePoi = poi;
+                    document.getElementById('poi-tag').innerText = poi.category;
+                    document.getElementById('poi-title').innerText = poi.name;
+                    document.getElementById('poi-description').innerText = poi.snippet;
+                    document.getElementById('poi-distance').innerText = `${distStr} away`;
+                    document.getElementById('poi-actions').classList.remove('hidden');
+                    map.setView([poi.lat, poi.lng], 10);
+                    playAudioGuide(poi.snippet);
+                };
+
+                item.innerHTML = `
+                    <div class="flex items-center space-x-3 overflow-hidden">
+                        <div class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-emerald-400 shrink-0">
+                            <i class="fa-solid fa-map-pin text-xs"></i>
+                        </div>
+                        <div class="truncate">
+                            <h4 class="text-xs font-bold text-white truncate">${poi.name}</h4>
+                            <p class="text-[10px] text-slate-400">${poi.category} • ${distStr}</p>
+                        </div>
+                    </div>
+                    <div>
+                        ${isTriggered ? '<span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-medium">Visited</span>' : '<span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">Ready</span>'}
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+    </script>
+</body>
+</html>
